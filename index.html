@@ -282,8 +282,8 @@
   </div>
 
   <script>
-    // API URL จาก Google Apps Script
-    const API_URL = "https://script.google.com/macros/s/AKfycbzYgyeYlmjl0d5HUxZ6UeBsOZELDkViAj5yWsOG1vp1Ipe1xo8CEBbU-b7JrKHMzTn-Zw/exec";
+    // API URL ของคุณ
+    const API_URL = "https://script.google.com/macros/s/AKfycbzPBH3FXwhGVGmeMv0CNLWjoUs2T6cJjhY1zi75xO5pzeTLrUaXKj1s8suLHEkxwzjBlg/exec";
 
     let dueSchedulesList = [];
     let calendarObj = null;
@@ -291,16 +291,12 @@
     function showSpinner() { document.getElementById('loadingSpinner').classList.remove('hidden'); }
     function hideSpinner() { document.getElementById('loadingSpinner').classList.add('hidden'); }
 
-    // ฟังก์ชันกลางสำหรับส่งข้อมูล POST แบบ Form Data เพื่อข้ามติด CORS
-    async function sendPostRequest(actionName, payloadData) {
-      const formData = new URLSearchParams();
-      formData.append('action', actionName);
-      formData.append('payload', JSON.stringify(payloadData));
-
-      const response = await fetch(API_URL, {
-        method: "POST",
-        body: formData
-      });
+    // ฟังก์ชันส่งข้อมูลด้วย GET (แก้ปัญหา CORS บน GitHub Pages ถาวร)
+    async function sendGetRequest(actionName, payloadData = {}) {
+      const paramStr = encodeURIComponent(JSON.stringify(payloadData));
+      const url = `${API_URL}?action=${actionName}&payload=${paramStr}&t=${new Date().getTime()}`;
+      
+      const response = await fetch(url);
       return await response.json();
     }
 
@@ -346,7 +342,7 @@
         locale: 'th',
         headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
         events: function(fetchInfo, successCallback, failureCallback) {
-          fetch(`${API_URL}?action=getAllSchedules`)
+          fetch(`${API_URL}?action=getAllSchedules&t=${new Date().getTime()}`)
             .then(res => res.json())
             .then(schedules => {
               const events = schedules.map(item => ({
@@ -363,10 +359,10 @@
       calendarObj.render();
     }
 
-    // 2. โหลดข้อมูลรายการวันนี้
+    // 2. โหลดรายการวันนี้
     async function loadTodayData() {
       try {
-        const res = await fetch(`${API_URL}?action=getToday`);
+        const res = await fetch(`${API_URL}?action=getToday&t=${new Date().getTime()}`);
         const data = await res.json();
         renderTodayData(data);
       } catch (err) {
@@ -402,7 +398,7 @@
       document.getElementById('todayBalance').innerText = '฿' + (income - expense).toLocaleString('th-TH', {minimumFractionDigits: 2});
     }
 
-    // 3. บันทึกรายการประจำวัน (ใช้ sendPostRequest)
+    // 3. บันทึกรายการประจำวัน
     async function handleTransSubmit(e) {
       e.preventDefault();
       showSpinner();
@@ -416,7 +412,7 @@
       };
 
       try {
-        await sendPostRequest("addTransaction", payload);
+        await sendGetRequest("addTransaction", payload);
         document.getElementById('transForm').reset();
         await loadTodayData();
       } catch (err) {
@@ -427,7 +423,7 @@
       }
     }
 
-    // 4. บันทึกรายการล่วงหน้า (ใช้ sendPostRequest)
+    // 4. บันทึกรายการล่วงหน้า
     async function handleScheduleSubmit(e) {
       e.preventDefault();
       showSpinner();
@@ -441,7 +437,7 @@
       };
 
       try {
-        await sendPostRequest("addSchedule", payload);
+        await sendGetRequest("addSchedule", payload);
         alert('บันทึกลงปฏิทินเรียบร้อยแล้ว');
         document.getElementById('scheduleForm').reset();
         checkNotifications();
@@ -457,7 +453,7 @@
     // 5. แจ้งเตือนกระดิ่ง
     async function checkNotifications() {
       try {
-        const res = await fetch(`${API_URL}?action=getDueSchedules`);
+        const res = await fetch(`${API_URL}?action=getDueSchedules&t=${new Date().getTime()}`);
         dueSchedulesList = await res.json();
         const badge = document.getElementById('bellBadge');
         if (dueSchedulesList.length > 0) {
@@ -513,13 +509,12 @@
       `).join('');
     }
 
-    // ชำระเรียบร้อย (ใช้ sendPostRequest)
     async function payComplete(idx) {
       showSpinner();
       const item = dueSchedulesList[idx];
 
       try {
-        await sendPostRequest("completeSchedule", item);
+        await sendGetRequest("completeSchedule", item);
         alert('บันทึกการชำระเรียบร้อย และนำข้อมูลไปแสดงหน้าแรกแล้ว');
         await checkNotifications();
         await loadTodayData();
@@ -537,7 +532,6 @@
       document.getElementById(`rescheduleBox-${idx}`).classList.toggle('hidden');
     }
 
-    // เลื่อนวันชำระ (ใช้ sendPostRequest)
     async function submitReschedule(idx) {
       const newDate = document.getElementById(`newDate-${idx}`).value;
       if (!newDate) {
@@ -549,7 +543,7 @@
       const payload = { rowIndex: item.rowIndex, newDate: newDate };
 
       try {
-        await sendPostRequest("reschedule", payload);
+        await sendGetRequest("reschedule", payload);
         alert('เลื่อนกำหนดชำระเรียบร้อย');
         await checkNotifications();
         if (calendarObj) calendarObj.refetchEvents();
@@ -573,7 +567,7 @@
       showSpinner();
 
       try {
-        const res = await fetch(`${API_URL}?action=getHistory&start=${start}&end=${end}`);
+        const res = await fetch(`${API_URL}?action=getHistory&start=${start}&end=${end}&t=${new Date().getTime()}`);
         const data = await res.json();
         renderHistoryReport(data);
       } catch (err) {
