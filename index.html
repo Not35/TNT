@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบบันทึกรายรับ-รายจ่าย & แจ้งเตือนเช็ค</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- FullCalendar CSS & JS -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Kanit', sans-serif; }
+    .fc-event { cursor: pointer; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+  <!-- Header -->
+  <header class="bg-blue-900 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <i class="fa-solid fa-wallet text-2xl text-blue-300"></i>
+        <h1 class="text-xl font-semibold tracking-wide">Finance & Schedule Manager</h1>
+      </div>
+      
+      <!-- Bell Notification Icon -->
+      <div class="relative">
+        <button onclick="toggleNotificationModal()" class="relative p-2 text-blue-200 hover:text-white transition">
+          <i class="fa-solid fa-bell text-2xl"></i>
+          <span id="bellBadge" class="hidden absolute top-0 right-0 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-bounce">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Bar -->
+  <div class="bg-blue-800 text-blue-100 shadow-md">
+    <div class="max-w-6xl mx-auto flex overflow-x-auto text-sm font-medium">
+      <button onclick="switchTab('today')" id="tab-today" class="px-6 py-3 border-b-4 border-blue-400 bg-blue-900 text-white flex items-center gap-2">
+        <i class="fa-solid fa-calendar-day"></i> รายการวันนี้
+      </button>
+      <button onclick="switchTab('schedule')" id="tab-schedule" class="px-6 py-3 border-b-4 border-transparent hover:bg-blue-700 flex items-center gap-2">
+        <i class="fa-solid fa-calendar-plus"></i> ปฏิทิน / รายการล่วงหน้า
+      </button>
+      <button onclick="switchTab('history')" id="tab-history" class="px-6 py-3 border-b-4 border-transparent hover:bg-blue-700 flex items-center gap-2">
+        <i class="fa-solid fa-chart-line"></i> ประวัติ/รายงานย้อนหลัง
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingSpinner" class="hidden fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div class="bg-white p-5 rounded-xl shadow-xl flex items-center gap-3">
+      <i class="fa-solid fa-circle-notch fa-spin text-blue-900 text-2xl"></i>
+      <span class="text-slate-700 font-medium">กำลังดำเนินการ...</span>
+    </div>
+  </div>
+
+  <main class="max-w-6xl mx-auto p-4 md:p-6">
+
+    <!-- 1. หน้าบันทึกรายรับ-รายจ่าย ประจำวัน -->
+    <section id="section-today" class="space-y-6">
+      <!-- Balance Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-emerald-500 flex justify-between items-center">
+          <div>
+            <p class="text-xs text-slate-500 font-medium uppercase">รายรับวันนี้</p>
+            <p id="todayIncome" class="text-2xl font-bold text-emerald-600 mt-1">฿0.00</p>
+          </div>
+          <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+            <i class="fa-solid fa-arrow-down"></i>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-rose-500 flex justify-between items-center">
+          <div>
+            <p class="text-xs text-slate-500 font-medium uppercase">รายจ่ายวันนี้</p>
+            <p id="todayExpense" class="text-2xl font-bold text-rose-600 mt-1">฿0.00</p>
+          </div>
+          <div class="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+            <i class="fa-solid fa-arrow-up"></i>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-600 flex justify-between items-center">
+          <div>
+            <p class="text-xs text-slate-500 font-medium uppercase">คงเหลือวันนี้</p>
+            <p id="todayBalance" class="text-2xl font-bold text-blue-900 mt-1">฿0.00</p>
+          </div>
+          <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center">
+            <i class="fa-solid fa-scale-balanced"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form & Table Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Form -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h2 class="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-pen-to-square"></i> บันทึกรายการใหม่
+          </h2>
+          <form id="transForm" onsubmit="handleTransSubmit(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">ประเภทรายการ</label>
+              <select id="type" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+                <option value="รายจ่าย">รายจ่าย</option>
+                <option value="รายรับ">รายรับ</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">หมวดหมู่/รายละเอียด</label>
+              <input type="text" id="category" placeholder="เช่น ค่าอาหาร, เงินเดือน" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">จำนวนเงิน (บาท)</label>
+              <input type="number" step="0.01" id="amount" placeholder="0.00" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">หมายเหตุเพิ่มเติม</label>
+              <input type="text" id="note" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+            </div>
+            <button type="submit" class="w-full bg-blue-900 hover:bg-blue-800 text-white font-medium py-2.5 rounded-lg transition shadow-md">
+              บันทึกข้อมูล
+            </button>
+          </form>
+        </div>
+
+        <!-- Today Transactions List -->
+        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h2 class="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-list"></i> รายการเฉพาะวันนี้
+          </h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-600">
+              <thead class="bg-slate-50 text-slate-700 uppercase text-xs border-b">
+                <tr>
+                  <th class="p-3">ประเภท</th>
+                  <th class="p-3">รายการ</th>
+                  <th class="p-3">หมายเหตุ</th>
+                  <th class="p-3 text-right">จำนวนเงิน</th>
+                </tr>
+              </thead>
+              <tbody id="todayTableBody" class="divide-y divide-slate-100">
+                <tr>
+                  <td colspan="4" class="p-4 text-center text-slate-400">กำลังโหลดข้อมูล...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. หน้าเพิ่มรายการล่วงหน้า และปฏิทิน -->
+    <section id="section-schedule" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Form เพิ่มรายการ -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h2 class="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-clock"></i> เพิ่มรายการล่วงหน้า / เช็ค
+          </h2>
+          <form id="scheduleForm" onsubmit="handleScheduleSubmit(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">วันที่ครบกำหนด</label>
+              <input type="date" id="schedDueDate" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">บริษัท / ผู้รับเงิน-จ่ายเงิน</label>
+              <input type="text" id="schedCompany" placeholder="เช่น บริษัท AAA จำกัด" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">หมายเลขเช็ค / อ้างอิง</label>
+              <input type="text" id="schedChequeNo" placeholder="เช่น CHK-123456" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">จำนวนเงิน (บาท)</label>
+              <input type="number" step="0.01" id="schedAmount" placeholder="0.00" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">หมายเหตุ</label>
+              <textarea id="schedNote" placeholder="ระบุรายละเอียดเพิ่มเติม" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none"></textarea>
+            </div>
+            <button type="submit" class="w-full bg-blue-900 hover:bg-blue-800 text-white font-medium py-2.5 rounded-lg transition shadow-md">
+              บันทึกลงปฏิทิน
+            </button>
+          </form>
+        </div>
+
+        <!-- ตัวแสดงปฏิทิน -->
+        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h2 class="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-calendar-days"></i> ปฏิทินการนัดหมาย / กำหนดชำระ
+          </h2>
+          <div id="calendar" class="min-h-[450px]"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. หน้าประวัติและรายงานย้อนหลัง -->
+    <section id="section-history" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h2 class="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+          <i class="fa-solid fa-filter"></i> เลือกช่วงเวลาที่ต้องการดูย้อนหลัง
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">ตั้งแต่วันที่</label>
+            <input type="date" id="startDate" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">ถึงวันที่</label>
+            <input type="date" id="endDate" class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-800 outline-none">
+          </div>
+          <button onclick="loadHistoryReport()" class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2.5 px-6 rounded-lg transition shadow-md">
+            ดึงข้อมูล
+          </button>
+        </div>
+      </div>
+
+      <!-- History Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border-b-4 border-emerald-500">
+          <p class="text-xs text-slate-500 font-medium">รวมรายรับช่วงที่เลือก</p>
+          <p id="histIncome" class="text-2xl font-bold text-emerald-600 mt-1">฿0.00</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border-b-4 border-rose-500">
+          <p class="text-xs text-slate-500 font-medium">รวมรายจ่ายช่วงที่เลือก</p>
+          <p id="histExpense" class="text-2xl font-bold text-rose-600 mt-1">฿0.00</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border-b-4 border-blue-600">
+          <p class="text-xs text-slate-500 font-medium">ยอดคงเหลือสุทธิ</p>
+          <p id="histBalance" class="text-2xl font-bold text-blue-900 mt-1">฿0.00</p>
+        </div>
+      </div>
+
+      <!-- History Table -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-600">
+            <thead class="bg-slate-50 text-slate-700 uppercase text-xs border-b">
+              <tr>
+                <th class="p-3">วันที่</th>
+                <th class="p-3">ประเภท</th>
+                <th class="p-3">รายการ</th>
+                <th class="p-3">หมายเหตุ</th>
+                <th class="p-3 text-right">จำนวนเงิน</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="5" class="p-4 text-center text-slate-400">กรุณาเลือกช่วงเวลาและกดดึงข้อมูล</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Notification Modal (Bell Click) -->
+  <div id="notifModal" class="hidden fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white w-full max-w-lg rounded-xl shadow-xl overflow-hidden">
+      <div class="bg-blue-900 text-white p-4 flex justify-between items-center">
+        <h3 class="font-semibold flex items-center gap-2">
+          <i class="fa-solid fa-bell"></i> รายการครบกำหนดชำระวันนี้
+        </h3>
+        <button onclick="toggleNotificationModal()" class="text-slate-300 hover:text-white">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <div id="notifList" class="p-4 max-h-96 overflow-y-auto space-y-4">
+        <!-- JS Render Item -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // ⚙️ นำ API URL จาก Google Apps Script มาวางตรงนี้
+    // ==========================================
+    const API_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID_HERE/exec";
+
+    let dueSchedulesList = [];
+    let calendarObj = null;
+
+    function showSpinner() { document.getElementById('loadingSpinner').classList.remove('hidden'); }
+    function hideSpinner() { document.getElementById('loadingSpinner').classList.add('hidden'); }
+
+    function getTodayString() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    window.onload = function() {
+      const todayStr = getTodayString();
+      const d = new Date();
+      const firstDayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+      
+      document.getElementById('startDate').value = firstDayStr;
+      document.getElementById('endDate').value = todayStr;
+
+      loadTodayData();
+      checkNotifications();
+      initCalendar();
+    };
+
+    function switchTab(tab) {
+      ['today', 'schedule', 'history'].forEach(t => {
+        document.getElementById(`section-${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).classList.remove('border-blue-400', 'bg-blue-900', 'text-white');
+        document.getElementById(`tab-${t}`).classList.add('border-transparent');
+      });
+      
+      document.getElementById(`section-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-${tab}`).classList.add('border-blue-400', 'bg-blue-900', 'text-white');
+      document.getElementById(`tab-${tab}`).classList.remove('border-transparent');
+
+      if (tab === 'schedule') {
+        setTimeout(() => { if (calendarObj) calendarObj.render(); }, 100);
+      }
+    }
+
+    // 1. ปฏิทิน FullCalendar
+    function initCalendar() {
+      const calendarEl = document.getElementById('calendar');
+      calendarObj = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'th',
+        headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+        events: function(fetchInfo, successCallback, failureCallback) {
+          fetch(`${API_URL}?action=getAllSchedules`)
+            .then(res => res.json())
+            .then(schedules => {
+              const events = schedules.map(item => ({
+                title: `${item.company} (฿${item.amount.toLocaleString()})`,
+                start: item.dueDate,
+                backgroundColor: item.status === 'Completed' ? '#10b981' : '#f59e0b',
+                borderColor: item.status === 'Completed' ? '#059669' : '#d97706'
+              }));
+              successCallback(events);
+            })
+            .catch(err => failureCallback(err));
+        }
+      });
+      calendarObj.render();
+    }
+
+    // 2. โหลดข้อมูลรายการวันนี้
+    async function loadTodayData() {
+      try {
+        const res = await fetch(`${API_URL}?action=getToday`);
+        const data = await res.json();
+        renderTodayData(data);
+      } catch (err) {
+        console.error("Error loading today data:", err);
+      }
+    }
+
+    function renderTodayData(data) {
+      const tbody = document.getElementById('todayTableBody');
+      let income = 0, expense = 0;
+      
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400">ไม่มีรายการของวันนี้</td></tr>';
+      } else {
+        tbody.innerHTML = data.map(item => {
+          if (item.type === 'รายรับ') income += item.amount;
+          else expense += item.amount;
+          
+          const isIncome = item.type === 'รายรับ';
+          return `
+            <tr class="hover:bg-slate-50">
+              <td class="p-3"><span class="px-2 py-1 rounded text-xs ${isIncome ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${item.type}</span></td>
+              <td class="p-3 font-medium text-slate-700">${item.category}</td>
+              <td class="p-3 text-slate-500">${item.note || '-'}</td>
+              <td class="p-3 text-right font-semibold ${isIncome ? 'text-emerald-600' : 'text-rose-600'}">${isIncome ? '+' : '-'}${item.amount.toLocaleString('th-TH', {minimumFractionDigits: 2})}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      document.getElementById('todayIncome').innerText = '฿' + income.toLocaleString('th-TH', {minimumFractionDigits: 2});
+      document.getElementById('todayExpense').innerText = '฿' + expense.toLocaleString('th-TH', {minimumFractionDigits: 2});
+      document.getElementById('todayBalance').innerText = '฿' + (income - expense).toLocaleString('th-TH', {minimumFractionDigits: 2});
+    }
+
+    // 3. บันทึกรายการประจำวัน
+    async function handleTransSubmit(e) {
+      e.preventDefault();
+      showSpinner();
+
+      const payload = {
+        action: "addTransaction",
+        payload: {
+          date: getTodayString(),
+          type: document.getElementById('type').value,
+          category: document.getElementById('category').value,
+          amount: parseFloat(document.getElementById('amount').value),
+          note: document.getElementById('note').value
+        }
+      };
+
+      try {
+        await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+        document.getElementById('transForm').reset();
+        await loadTodayData();
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการบันทึก");
+      } finally {
+        hideSpinner();
+      }
+    }
+
+    // 4. บันทึกรายการล่วงหน้า
+    async function handleScheduleSubmit(e) {
+      e.preventDefault();
+      showSpinner();
+
+      const payload = {
+        action: "addSchedule",
+        payload: {
+          dueDate: document.getElementById('schedDueDate').value,
+          company: document.getElementById('schedCompany').value,
+          chequeNo: document.getElementById('schedChequeNo').value,
+          amount: parseFloat(document.getElementById('schedAmount').value),
+          note: document.getElementById('schedNote').value
+        }
+      };
+
+      try {
+        await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+        alert('บันทึกลงปฏิทินเรียบร้อยแล้ว');
+        document.getElementById('scheduleForm').reset();
+        checkNotifications();
+        if (calendarObj) calendarObj.refetchEvents();
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการบันทึก");
+      } finally {
+        hideSpinner();
+      }
+    }
+
+    // 5. แจ้งเตือนกระดิ่ง
+    async function checkNotifications() {
+      try {
+        const res = await fetch(`${API_URL}?action=getDueSchedules`);
+        dueSchedulesList = await res.json();
+        const badge = document.getElementById('bellBadge');
+        if (dueSchedulesList.length > 0) {
+          badge.innerText = dueSchedulesList.length;
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+      } catch (err) {
+        console.error("Error checking notifications:", err);
+      }
+    }
+
+    function toggleNotificationModal() {
+      const modal = document.getElementById('notifModal');
+      modal.classList.toggle('hidden');
+      if (!modal.classList.contains('hidden')) {
+        renderNotifications();
+      }
+    }
+
+    function renderNotifications() {
+      const container = document.getElementById('notifList');
+      if (dueSchedulesList.length === 0) {
+        container.innerHTML = '<p class="text-center text-slate-400 py-4">ไม่มีรายการที่ครบกำหนดในขณะนี้</p>';
+        return;
+      }
+
+      container.innerHTML = dueSchedulesList.map((item, idx) => `
+        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
+          <div class="flex justify-between font-semibold text-slate-800">
+            <span>บริษัท: ${item.company}</span>
+            <span class="text-rose-600">฿${item.amount.toLocaleString('th-TH', {minimumFractionDigits: 2})}</span>
+          </div>
+          <div class="text-xs text-slate-500 space-y-1">
+            <p><strong>หมายเลขเช็ค:</strong> ${item.chequeNo || '-'}</p>
+            <p><strong>กำหนดชำระ:</strong> ${item.dueDate}</p>
+            <p><strong>รายละเอียด:</strong> ${item.note || '-'}</p>
+          </div>
+          <div class="pt-2 flex gap-2">
+            <button onclick="payComplete(${idx})" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-2 rounded font-medium transition">
+              จ่ายเรียบร้อย
+            </button>
+            <button onclick="showRescheduleInput(${idx})" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs py-2 rounded font-medium transition">
+              ผ่อนจ่าย / เลื่อนวัน
+            </button>
+          </div>
+          <div id="rescheduleBox-${idx}" class="hidden pt-2 space-y-2">
+            <input type="date" id="newDate-${idx}" class="w-full text-xs p-2 border rounded">
+            <button onclick="submitReschedule(${idx})" class="w-full bg-blue-900 text-white text-xs py-1.5 rounded">ยืนยันการเลื่อนวัน</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function payComplete(idx) {
+      showSpinner();
+      const item = dueSchedulesList[idx];
+      const payload = { action: "completeSchedule", payload: item };
+
+      try {
+        await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+        alert('บันทึกการชำระเรียบร้อย และนำข้อมูลไปแสดงหน้าแรกแล้ว');
+        await checkNotifications();
+        await loadTodayData();
+        if (calendarObj) calendarObj.refetchEvents();
+        toggleNotificationModal();
+      } catch (err) {
+        alert("เกิดข้อผิดพลาด");
+      } finally {
+        hideSpinner();
+      }
+    }
+
+    function showRescheduleInput(idx) {
+      document.getElementById(`rescheduleBox-${idx}`).classList.toggle('hidden');
+    }
+
+    async function submitReschedule(idx) {
+      const newDate = document.getElementById(`newDate-${idx}`).value;
+      if (!newDate) {
+        alert('กรุณาเลือกวันที่ต้องการเลื่อนชำระ');
+        return;
+      }
+      showSpinner();
+      const item = dueSchedulesList[idx];
+      const payload = {
+        action: "reschedule",
+        payload: { rowIndex: item.rowIndex, newDate: newDate }
+      };
+
+      try {
+        await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+        alert('เลื่อนกำหนดชำระเรียบร้อย');
+        await checkNotifications();
+        if (calendarObj) calendarObj.refetchEvents();
+        toggleNotificationModal();
+      } catch (err) {
+        alert("เกิดข้อผิดพลาด");
+      } finally {
+        hideSpinner();
+      }
+    }
+
+    // 6. รายงานย้อนหลัง
+    async function loadHistoryReport() {
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      if (!start || !end) {
+        alert('กรุณาเลือกวันที่ให้ครบถ้วน');
+        return;
+      }
+      showSpinner();
+
+      try {
+        const res = await fetch(`${API_URL}?action=getHistory&start=${start}&end=${end}`);
+        const data = await res.json();
+        renderHistoryReport(data);
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการดึงรายงาน");
+      } finally {
+        hideSpinner();
+      }
+    }
+
+    function renderHistoryReport(data) {
+      const tbody = document.getElementById('historyTableBody');
+      let income = 0, expense = 0;
+
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">ไม่พบข้อมูลในช่วงเวลาที่เลือก</td></tr>';
+      } else {
+        tbody.innerHTML = data.map(item => {
+          if (item.type === 'รายรับ') income += item.amount;
+          else expense += item.amount;
+
+          const isIncome = item.type === 'รายรับ';
+          return `
+            <tr class="hover:bg-slate-50">
+              <td class="p-3 text-slate-500">${item.date}</td>
+              <td class="p-3"><span class="px-2 py-1 rounded text-xs ${isIncome ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${item.type}</span></td>
+              <td class="p-3 font-medium text-slate-700">${item.category}</td>
+              <td class="p-3 text-slate-500">${item.note || '-'}</td>
+              <td class="p-3 text-right font-semibold ${isIncome ? 'text-emerald-600' : 'text-rose-600'}">${isIncome ? '+' : '-'}${item.amount.toLocaleString('th-TH', {minimumFractionDigits: 2})}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      document.getElementById('histIncome').innerText = '฿' + income.toLocaleString('th-TH', {minimumFractionDigits: 2});
+      document.getElementById('histExpense').innerText = '฿' + expense.toLocaleString('th-TH', {minimumFractionDigits: 2});
+      document.getElementById('histBalance').innerText = '฿' + (income - expense).toLocaleString('th-TH', {minimumFractionDigits: 2});
+    }
+  </script>
+</body>
+</html>
