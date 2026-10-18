@@ -282,9 +282,7 @@
   </div>
 
   <script>
-    // ==========================================
-    // ⚙️ นำ API URL จาก Google Apps Script มาวางตรงนี้
-    // ==========================================
+    // API URL จาก Google Apps Script
     const API_URL = "https://script.google.com/macros/s/AKfycbzYgyeYlmjl0d5HUxZ6UeBsOZELDkViAj5yWsOG1vp1Ipe1xo8CEBbU-b7JrKHMzTn-Zw/exec";
 
     let dueSchedulesList = [];
@@ -292,6 +290,19 @@
 
     function showSpinner() { document.getElementById('loadingSpinner').classList.remove('hidden'); }
     function hideSpinner() { document.getElementById('loadingSpinner').classList.add('hidden'); }
+
+    // ฟังก์ชันกลางสำหรับส่งข้อมูล POST แบบ Form Data เพื่อข้ามติด CORS
+    async function sendPostRequest(actionName, payloadData) {
+      const formData = new URLSearchParams();
+      formData.append('action', actionName);
+      formData.append('payload', JSON.stringify(payloadData));
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: formData
+      });
+      return await response.json();
+    }
 
     function getTodayString() {
       const d = new Date();
@@ -391,56 +402,52 @@
       document.getElementById('todayBalance').innerText = '฿' + (income - expense).toLocaleString('th-TH', {minimumFractionDigits: 2});
     }
 
-    // 3. บันทึกรายการประจำวัน
+    // 3. บันทึกรายการประจำวัน (ใช้ sendPostRequest)
     async function handleTransSubmit(e) {
       e.preventDefault();
       showSpinner();
 
       const payload = {
-        action: "addTransaction",
-        payload: {
-          date: getTodayString(),
-          type: document.getElementById('type').value,
-          category: document.getElementById('category').value,
-          amount: parseFloat(document.getElementById('amount').value),
-          note: document.getElementById('note').value
-        }
+        date: getTodayString(),
+        type: document.getElementById('type').value,
+        category: document.getElementById('category').value,
+        amount: parseFloat(document.getElementById('amount').value),
+        note: document.getElementById('note').value
       };
 
       try {
-        await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+        await sendPostRequest("addTransaction", payload);
         document.getElementById('transForm').reset();
         await loadTodayData();
       } catch (err) {
+        console.error(err);
         alert("เกิดข้อผิดพลาดในการบันทึก");
       } finally {
         hideSpinner();
       }
     }
 
-    // 4. บันทึกรายการล่วงหน้า
+    // 4. บันทึกรายการล่วงหน้า (ใช้ sendPostRequest)
     async function handleScheduleSubmit(e) {
       e.preventDefault();
       showSpinner();
 
       const payload = {
-        action: "addSchedule",
-        payload: {
-          dueDate: document.getElementById('schedDueDate').value,
-          company: document.getElementById('schedCompany').value,
-          chequeNo: document.getElementById('schedChequeNo').value,
-          amount: parseFloat(document.getElementById('schedAmount').value),
-          note: document.getElementById('schedNote').value
-        }
+        dueDate: document.getElementById('schedDueDate').value,
+        company: document.getElementById('schedCompany').value,
+        chequeNo: document.getElementById('schedChequeNo').value,
+        amount: parseFloat(document.getElementById('schedAmount').value),
+        note: document.getElementById('schedNote').value
       };
 
       try {
-        await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+        await sendPostRequest("addSchedule", payload);
         alert('บันทึกลงปฏิทินเรียบร้อยแล้ว');
         document.getElementById('scheduleForm').reset();
         checkNotifications();
         if (calendarObj) calendarObj.refetchEvents();
       } catch (err) {
+        console.error(err);
         alert("เกิดข้อผิดพลาดในการบันทึก");
       } finally {
         hideSpinner();
@@ -506,19 +513,20 @@
       `).join('');
     }
 
+    // ชำระเรียบร้อย (ใช้ sendPostRequest)
     async function payComplete(idx) {
       showSpinner();
       const item = dueSchedulesList[idx];
-      const payload = { action: "completeSchedule", payload: item };
 
       try {
-        await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+        await sendPostRequest("completeSchedule", item);
         alert('บันทึกการชำระเรียบร้อย และนำข้อมูลไปแสดงหน้าแรกแล้ว');
         await checkNotifications();
         await loadTodayData();
         if (calendarObj) calendarObj.refetchEvents();
         toggleNotificationModal();
       } catch (err) {
+        console.error(err);
         alert("เกิดข้อผิดพลาด");
       } finally {
         hideSpinner();
@@ -529,6 +537,7 @@
       document.getElementById(`rescheduleBox-${idx}`).classList.toggle('hidden');
     }
 
+    // เลื่อนวันชำระ (ใช้ sendPostRequest)
     async function submitReschedule(idx) {
       const newDate = document.getElementById(`newDate-${idx}`).value;
       if (!newDate) {
@@ -537,18 +546,16 @@
       }
       showSpinner();
       const item = dueSchedulesList[idx];
-      const payload = {
-        action: "reschedule",
-        payload: { rowIndex: item.rowIndex, newDate: newDate }
-      };
+      const payload = { rowIndex: item.rowIndex, newDate: newDate };
 
       try {
-        await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+        await sendPostRequest("reschedule", payload);
         alert('เลื่อนกำหนดชำระเรียบร้อย');
         await checkNotifications();
         if (calendarObj) calendarObj.refetchEvents();
         toggleNotificationModal();
       } catch (err) {
+        console.error(err);
         alert("เกิดข้อผิดพลาด");
       } finally {
         hideSpinner();
